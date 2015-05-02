@@ -1,0 +1,7 @@
+Charlie,Albin Michel,Stephen,King,32
+Tortuga,Rivage,Valerio,Evangelisti,30.99
+Le serment des limbes,Albin Michel,Jean Christophe,Grange,39.99
+La rondes des vies eternelles,Black Book editions,Nicolas,Cluzeau,24.80
+L'empire des loups,Albin Michel,Jean Christophe,Grange,39.99
+Shining,Albin Michel,Stephen,King,-3
+eymerich,40

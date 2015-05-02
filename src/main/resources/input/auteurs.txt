@@ -1,0 +1,5 @@
+Stephen,King,americain,66
+Jean Christophe,Grange,francais,52
+Nicolas,Cluzeau,francais,46
+James,Herbert,anglais,71
+Valerio,Evangelisti,italien,61

@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:batch="http://www.springframework.org/schema/batch"
+	xmlns:tx = "http://www.springframework.org/schema/tx"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+	http://www.springframework.org/schema/beans/spring-beans-2.0.xsd
+	http://www.springframework.org/schema/batch
+	http://www.springframework.org/schema/batch/spring-batch-2.2.xsd
+	http://www.springframework.org/schema/tx
+    http://www.springframework.org/schema/tx/spring-tx-2.0.xsd">
+
+	<!-- auteur -->
+	<bean id="auteurReaderCSV" class="org.springframework.batch.item.file.FlatFileItemReader" scope="step">
+		<property name="resource" value="#{jobParameters['input.file']}" />
+		<property name="lineMapper">
+			<bean class="org.springframework.batch.item.file.mapping.DefaultLineMapper">
+				<property name="lineTokenizer">
+				<bean class="org.springframework.batch.item.file.transform.DelimitedLineTokenizer">
+					<property name="delimiter" value=","/>
+					<property name="names" value="prenom,nom,nationalite,age" />
+				</bean>
+				</property>
+				<property name="fieldSetMapper">
+					<bean class="org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper">
+						<property name="targetType" value="com.exemple.beans.Auteur" />
+					</bean>
+				</property>
+			</bean>
+		</property>
+	</bean>
+	<bean id="auteurDaoWriter"
+	class="org.springframework.batch.item.database.JdbcBatchItemWriter">
+	<property name="dataSource" ref="dataSource" />
+	<property name="sql">
+	  <value>
+            <![CDATA[        
+            	insert into AUTEUR(PRENOM,NOM,NATIONALITE,AGE,CATEGORIE) 
+				values (:prenom, :nom, :nationalite, :age,:categorie)
+            ]]>
+	  </value>
+	</property>
+	<!-- It will take care matching between object property and sql name parameter -->
+	<property name="itemSqlParameterSourceProvider">
+		<bean
+		class="org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider" />
+	</property>
+  </bean>
+	
+	<bean id="auteurProcessor" class="com.exemple.batch.AuteurProcessor" />
+	
+	<!-- livres -->
+	<bean id="livreReaderCSV" class="org.springframework.batch.item.file.FlatFileItemReader" scope="step">
+		<property name="resource" value="#{jobParameters['input.file.livre']}" />
+		<property name="lineMapper">
+			<bean class="org.springframework.batch.item.file.mapping.DefaultLineMapper">
+				<property name="lineTokenizer">
+				<bean class="org.springframework.batch.item.file.transform.DelimitedLineTokenizer">
+					<property name="delimiter" value=","/>
+					<property name="names" value="titre,editeur,prenomAuteur,nomAuteur,prix" />
+				</bean>
+				</property>
+				<property name="fieldSetMapper">
+					<bean class="org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper">
+						<property name="targetType" value="com.exemple.beans.Livre" />
+					</bean>
+				</property>
+			</bean>
+		</property>
+	</bean>
+	<bean id="livreDaoWriter"
+		class="org.springframework.batch.item.database.JdbcBatchItemWriter">
+		<property name="dataSource" ref="dataSource" />
+		<property name="sql">
+		  <value>
+	            <![CDATA[        
+	            	insert into livre(titre,auteur_id,edition,prix) 
+					values (:titre, :auteurId, :editeur, :prix)
+	            ]]>
+		  </value>
+		</property>
+		<!-- It will take care matching between object property and sql name parameter -->
+		<property name="itemSqlParameterSourceProvider">
+			<bean
+			class="org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider" />
+		</property>
+  	</bean>
+  
+  	<bean id="livreValidatorProcessor" class="com.exemple.batch.LivreValidatorProcessor">
+		<property name="jdbcTemplate" ref="idJdbcTemplate" />
+	</bean>
+	
+	<bean id="livreProcessor" class="com.exemple.batch.LivreProcessor">
+		<property name="jdbcTemplate" ref="idJdbcTemplate" />
+	</bean>
+	
+	<bean id="compositeProcessor"                                                   
+         class="org.springframework.batch.item.support.CompositeItemProcessor">                                          
+     <property name="delegates">                                          
+       <list>                                                             
+         <ref bean="livreValidatorProcessor" />                            
+         <ref bean="livreProcessor" />                          
+       </list>                                                            
+     </property>                                                          
+   </bean>                                                                
+	
+	
+	<!-- jdbc configuration -->
+		
+	<bean id="idJdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+		<property name="dataSource" ref="dataSource" />
+	</bean>
+	 
+   <bean id="dataSource" class="org.springframework.jdbc.datasource.SingleConnectionDataSource">
+		<property name="driverClassName" value="org.h2.Driver" />
+		<property name="url" value="jdbc:h2:tcp://localhost/mem:sb-exemple" />
+		<property name="username" value="sa" />
+		<property name="password" value="" />
+	</bean>
+	
+	<!-- validation -->
+	
+	<bean id="paramsJobValidator" class="org.springframework.batch.core.job.DefaultJobParametersValidator">
+		<property name="requiredKeys"> 
+			<set>
+				<value>input.file</value>
+				<value>input.file.livre</value> 
+			</set>
+		</property>
+	</bean>
+	
+	<!-- deciders -->
+	<bean id="auteurFileExistsDecider" class="com.exemple.batch.FileExistsDecider">
+    	<property name="filePath" value="input.file" />
+    </bean>
+    <bean id="livreFileExistsDecider" class="com.exemple.batch.FileExistsDecider">
+    	<property name="filePath" value="input.file.livre" />
+    </bean>
+    
+    <!-- error listener -->
+    <bean id="skipBookLineListener" class="com.exemple.batch.SkipLineListener" scope="step">
+		<property name="jdbcTemplate" ref="idJdbcTemplate" />
+		<property name="origin" value="#{jobParameters['input.file.livre']}" />
+	</bean>
+	<bean id="jobExecutionStatusListener" class="com.exemple.batch.JobExecutionStatusListener"/>
+	
+	<!-- job configuration -->
+	
+	<bean id="jobLauncher"
+		class="org.springframework.batch.core.launch.support.SimpleJobLauncher">
+		<property name="jobRepository" ref="jobRepository" />
+	</bean>
+
+	<bean id="jobRepository"
+		class="org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean">
+		<property name="transactionManager" ref="transactionManager" />
+	</bean>
+
+	<bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+     <property name="dataSource" ref="dataSource"/>
+  </bean>
+
+  <tx:annotation-driven transaction-manager="transactionManager"/>
+  
+	<job id="importAuteurs"
+		xmlns="http://www.springframework.org/schema/batch">
+		<listeners>
+			<listener ref="jobExecutionStatusListener" />
+		</listeners>
+		<validator ref="paramsJobValidator"/>
+		<decision id="auteurFileDecision" decider="auteurFileExistsDecider">
+        	<end on="NO FILE" />
+            <next on="FILE EXISTS" to="readWriteAuteur" />
+        </decision>
+		<step id="readWriteAuteur" next="livreFileDecision">
+			<tasklet>
+				<chunk reader="auteurReaderCSV" writer="auteurDaoWriter" processor="auteurProcessor" commit-interval="2" />
+			</tasklet>
+		</step>
+		<decision id="livreFileDecision" decider="livreFileExistsDecider">
+        	<end on="NO FILE" />
+            <next on="FILE EXISTS" to="readWriteLivre" />
+        </decision>
+		<step id="readWriteLivre">
+			<tasklet>
+				<chunk reader="livreReaderCSV" writer="livreDaoWriter" processor="compositeProcessor" commit-interval="2" skip-limit="3">
+					<skippable-exception-classes>
+						<include class="org.springframework.batch.item.file.FlatFileParseException" />
+						<include class="org.springframework.dao.DataAccessException" />
+						<include class="com.exemple.beans.FunctionalException" />
+					</skippable-exception-classes>
+				</chunk>
+				<listeners>
+					<listener ref="skipBookLineListener" />
+				</listeners>
+			</tasklet>
+		</step>
+	</job>
+
+
+
+
+</beans>
